@@ -15,34 +15,49 @@ def carregar_automato(arquivo_aut):
         destino = trans["to"]
         if origem not in transicoes:
             transicoes[origem] = {}
-        transicoes[origem][leitura] = destino
+        if leitura not in transicoes[origem]:
+            transicoes[origem][leitura] = set()
+        transicoes[origem][leitura].add(destino)
     return inicial, finais, transicoes
 
-def processar_palavra(estado_inicial, estados_finais, transicoes, palavra):
-    estado_atual = estado_inicial
+def clausura_epsilon(estados, transicoes):
+    pilha = list(estados)
+    visitados = set(estados)
+    while pilha:
+        estado = pilha.pop()
+        for destino in transicoes.get(estado, {}).get(None, []):
+            if destino not in visitados:
+                visitados.add(destino)
+                pilha.append(destino)
+    return visitados
+
+def processar_palavra_afn(inicial, finais, transicoes, palavra):
+    estados_atuais = clausura_epsilon({inicial}, transicoes)
     for simbolo in palavra:
-        if estado_atual not in transicoes or simbolo not in transicoes[estado_atual]:
+        proximos = set()
+        for estado in estados_atuais:
+            destinos = transicoes.get(estado, {}).get(simbolo, set())
+            proximos.update(destinos)
+        estados_atuais = clausura_epsilon(proximos, transicoes)
+        if not estados_atuais:
             return 0
-        estado_atual = transicoes[estado_atual][simbolo]
-    return 1 if estado_atual in estados_finais else 0
+    return 1 if estados_atuais & finais else 0
 
 def executar_simulador(arquivo_aut, arquivo_in, arquivo_out):
     inicial, finais, transicoes = carregar_automato(arquivo_aut)
     resultados = []
-
     with open(arquivo_in, 'r') as f_in:
         leitor = csv.reader(f_in, delimiter=';')
         for linha in leitor:
             palavra, esperado = linha
             inicio = time.time()
-            obtido = processar_palavra(inicial, finais, transicoes, palavra)
+            obtido = processar_palavra_afn(inicial, finais, transicoes, palavra)
             fim = time.time()
             duracao = f"{(fim - inicio):.3f}"
             resultados.append([palavra, esperado, obtido, duracao])
-
     with open(arquivo_out, 'w', newline='') as f_out:
         escritor = csv.writer(f_out, delimiter=';')
-        # escritor.writerow(['palavra', 'esperado', 'obtido', 'duracao'])  # opcional
+        escritor.writerow(['palavra', 'esperado', 'obtido', 'tempo'])
         escritor.writerows(resultados)
 
 if __name__ == "__main__":
@@ -50,4 +65,4 @@ if __name__ == "__main__":
         print("Uso: python simulador.py <automato.aut> <entradas.in> <saida.out>")
         sys.exit(1)
     executar_simulador(sys.argv[1], sys.argv[2], sys.argv[3])
-    print('Ola')
+    print('Simulacao concluida')
